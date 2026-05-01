@@ -167,8 +167,12 @@ module emu
 	// 1 - D-/TX
 	// 2..6 - USR2..USR6
 	// Set USER_OUT to 1 to read from USER_IN.
-	input   [6:0] USER_IN,
-	output  [6:0] USER_OUT,
+	output	USER_OSD,
+	// [MiSTer-DB9 BEGIN] - DB9/SNAC8 support: per-pin push-pull mask
+	output	[7:0] USER_PP,
+	// [MiSTer-DB9 END]
+	input	[7:0] USER_IN,
+	output	[7:0] USER_OUT,
 
 	input         OSD_STATUS
 );
@@ -176,7 +180,50 @@ module emu
 ///////// Default values for ports not used in this core /////////
 
 assign ADC_BUS  = 'Z;
-assign USER_OUT = '1;
+
+// [MiSTer-DB9 BEGIN] - DB9/SNAC8 support: USER_PP default
+assign USER_PP = USER_PP_DRIVE;
+// [MiSTer-DB9 END]
+
+// [MiSTer-DB9 BEGIN] - DB9/SNAC8 support: joydb wrapper
+wire         CLK_JOY = CLK_50M;                 // 40-50 MHz
+wire   [1:0] joy_type        = status[127:126]; // 0=Off, 1=Saturn, 2=DB9MD, 3=DB15
+wire         joy_2p          = status[125];
+wire         joy_db9md_en    = (joy_type == 2'd2);
+wire         joy_db15_en     = (joy_type == 2'd3);
+wire         joy_any_en      = |joy_type;
+// [MiSTer-DB9 END]
+
+// [MiSTer-DB9-Pro BEGIN] - Saturn key gate
+wire         saturn_unlocked;                   // driven by hps_io UIO_DB9_KEY (0xFE)
+// [MiSTer-DB9-Pro END]
+
+// [MiSTer-DB9 BEGIN] - DB9/SNAC8 support: joydb wrapper wires + instance
+wire   [7:0] USER_OUT_DRIVE;
+wire   [7:0] USER_PP_DRIVE;
+wire  [15:0] joydb_1, joydb_2;
+wire         joydb_1ena, joydb_2ena;
+wire  [15:0] joy_raw_payload;
+
+joydb joydb (
+  .clk             ( CLK_JOY         ),
+  .USER_IN         ( USER_IN         ),
+  .joy_type        ( joy_type        ),
+  .joy_2p          ( joy_2p          ),
+  .saturn_unlocked ( saturn_unlocked ),
+  .USER_OUT_DRIVE  ( USER_OUT_DRIVE  ),
+  .USER_PP_DRIVE   ( USER_PP_DRIVE   ),
+  .USER_OSD        ( USER_OSD        ),
+  .joydb_1         ( joydb_1         ),
+  .joydb_2         ( joydb_2         ),
+  .joydb_1ena      ( joydb_1ena      ),
+  .joydb_2ena      ( joydb_2ena      ),
+  .joy_raw         ( joy_raw_payload )
+);
+
+assign USER_OUT = USER_OUT_DRIVE;
+// [MiSTer-DB9 END]
+
 assign {UART_RTS, UART_TXD, UART_DTR} = 0;
 assign {SD_SCK, SD_MOSI, SD_CS} = 'Z;
 assign {SDRAM_DQ, SDRAM_A, SDRAM_BA, SDRAM_CLK, SDRAM_CKE, SDRAM_DQML, SDRAM_DQMH, SDRAM_nWE, SDRAM_nCAS, SDRAM_nRAS, SDRAM_nCS} = 'Z;
@@ -217,6 +264,11 @@ localparam CONF_STR = {
 	"h1O[19],Input Matrix,CreatiVision,Laser 2001;",
 	"O[7],Video Region,NTSC,PAL;",
 	"-;",
+	// [MiSTer-DB9-Pro BEGIN] - Saturn-first joy_type (canonical bit notation)
+	"O[127:126],UserIO Joystick,Off,Saturn,DB9MD,DB15;",
+	"O[125],UserIO Players, 1 Player,2 Players;",
+	// [MiSTer-DB9-Pro END]
+	"-;",
 	"P1,Audio & Video;",
 	"P1-;",
 	"P1O[1],Border,Off,On;",
@@ -238,6 +290,11 @@ wire forced_scandoubler;
 wire [15:0] joystick_0, joystick_1;
 wire  [1:0] buttons;
 wire [127:0] status;
+
+// [MiSTer-DB9 BEGIN] - DB9/SNAC8 support: joydb-aware joystick mux
+wire [15:0] joy0 = joydb_1ena ? (OSD_STATUS ? 16'b0 : joydb_1[15:0]) : joystick_0;
+wire [15:0] joy1 = joydb_2ena ? (OSD_STATUS ? 16'b0 : joydb_2[15:0]) : joydb_1ena ? joystick_0 : joystick_1;
+// [MiSTer-DB9 END]
 wire [10:0] ps2_key;
 
 wire [24:0] ioctl_addr;
@@ -267,6 +324,12 @@ hps_io #(.CONF_STR(CONF_STR)) hps_io
 	.ps2_key(ps2_key),
 	.joystick_0(joystick_0),
 	.joystick_1(joystick_1),
+	// [MiSTer-DB9 BEGIN] - DB9/SNAC8 support: joy_raw
+	.joy_raw(OSD_STATUS ? joy_raw_payload : 16'b0),
+	// [MiSTer-DB9 END]
+	// [MiSTer-DB9-Pro BEGIN] - Saturn key gate
+	.saturn_unlocked(saturn_unlocked),
+	// [MiSTer-DB9-Pro END]
 
 	.ioctl_download(ioctl_download),
 	.ioctl_wr(ioctl_wr),
@@ -383,7 +446,7 @@ creativision creativision
 	.pb_in      (pb_in),
 	.bank_mode  (bank_mode),
 	.page0_mode (page0_mode),
-	.nmi        (joystick_0[7] | joystick_1[7]),
+	.nmi        (joy0[7] | joy1[7]),
 	.reset      (reset),
 	.cart_write (cart_wr),
 	.cart_dout  (cart_din),
@@ -475,8 +538,8 @@ cv_keyboard keyboard_from_hell
 	.ps2_key        (text_download ? text_key[8:0] : ps2_key[8:0]),
 	.ps2_keydown    (text_download ? text_key[9]   : ps2_key[9]),
 	.ps2_strobe     (text_download ? text_key[10]  : ps2_key[10]),
-	.joy1           (joystick_0),
-	.joy2           (joystick_1),
+	.joy1           (joy0),
+	.joy2           (joy1),
 	.select_a       (pa_out),
 	.select_b       (pb_out),
 	.code_b         (pb_in),
