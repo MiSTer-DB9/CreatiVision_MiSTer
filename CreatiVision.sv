@@ -293,13 +293,14 @@ wire [127:0] status;
 
 // [MiSTer-DB9 BEGIN] - DB9/SNAC8 support: joydb-aware joystick mux
 // CONF_STR is "J0,B,A,select,start" -> consumer expects joy[7:4]={start,select,A,B}.
-// joydb_1 layout: [3:0]=RLDU, [4]=A/btn1, [5]=B/btn2, [6]=C, [10]=Start.
-// Remap A<->bit5, B<->bit4, C->select(bit6), Start->start(bit7).
+// joydb_1 layout: [3:0]=RLDU, [4]=B/btn1, [5]=C/btn2, [10]=Start, [11]=Mode/Select
+// (6-btn MD native | 3-btn MD Start+B chord via joydb9md.v | Saturn R | DB15 Select).
+// CreatiVision A is the second game button; select->joydb_1[11] per PATTERNS.md Rule 3.
 wire [15:0] joy0 = joydb_1ena ? (OSD_STATUS ? 16'b0
-                              : {8'b0, joydb_1[10], joydb_1[6], joydb_1[4], joydb_1[5], joydb_1[3:0]})
+                              : {8'b0, joydb_1[10], joydb_1[11], joydb_1[4], joydb_1[5], joydb_1[3:0]})
                               : joystick_0;
 wire [15:0] joy1 = joydb_2ena ? (OSD_STATUS ? 16'b0
-                              : {8'b0, joydb_2[10], joydb_2[6], joydb_2[4], joydb_2[5], joydb_2[3:0]})
+                              : {8'b0, joydb_2[10], joydb_2[11], joydb_2[4], joydb_2[5], joydb_2[3:0]})
                               : joydb_1ena ? joystick_0 : joystick_1;
 // [MiSTer-DB9 END]
 wire [10:0] ps2_key;
