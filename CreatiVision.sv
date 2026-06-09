@@ -325,10 +325,10 @@ wire [127:0] status;
 // (6-btn MD native | 3-btn MD Start+B chord via joydb9md.v | Saturn R | DB15 Select).
 // CreatiVision A is the second game button; select->joydb_1[11].
 wire [15:0] joy0 = joydb_1ena ? (OSD_STATUS ? 16'b0
-                              : {8'b0, joydb_1[10], joydb_1[11], joydb_1[4], joydb_1[5], joydb_1[3:0]})
+                              : joydb_1_mapped[7:0])
                               : joystick_0;
 wire [15:0] joy1 = joydb_2ena ? (OSD_STATUS ? 16'b0
-                              : {8'b0, joydb_2[10], joydb_2[11], joydb_2[4], joydb_2[5], joydb_2[3:0]})
+                              : joydb_2_mapped[7:0])
                               : joydb_1ena ? joystick_0 : joystick_1;
 // [MiSTer-DB9 END]
 wire [10:0] ps2_key;
