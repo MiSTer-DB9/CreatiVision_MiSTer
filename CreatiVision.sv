@@ -323,7 +323,7 @@ wire [127:0] status;
 // CONF_STR is "J0,B,A,select,start" -> consumer expects joy[7:4]={start,select,A,B}.
 // joydb_1 layout: [3:0]=RLDU, [4]=B/btn1, [5]=C/btn2, [10]=Start, [11]=Mode/Select
 // (6-btn MD native | 3-btn MD Start+B chord via joydb9md.v | Saturn R | DB15 Select).
-// CreatiVision A is the second game button; select->joydb_1[11].
+// CreatiVision A is the second game button; mapped to select->joydb_1[11].
 wire [15:0] joy0 = joydb_1ena ? (OSD_STATUS ? 16'b0
                               : joydb_1_mapped[7:0])
                               : joystick_0;
